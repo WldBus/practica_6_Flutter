@@ -147,6 +147,15 @@ class _NotesListScreenState extends State<NotesListScreen> {
     }
   }
 
+  Future<Map<String, String>> _getUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'lastName': prefs.getString('lastName') ?? '',
+      'firstName': prefs.getString('firstName') ?? '',
+      'middleName': prefs.getString('middleName') ?? '',
+    };
+  }
+
   List<Map<String, dynamic>> get filteredNotes {
     if (searchQuery.isEmpty) return notes;
     return notes
@@ -316,45 +325,59 @@ class _NotesListScreenState extends State<NotesListScreen> {
                     itemBuilder: (context, index) {
                       final note = filteredNotes[index];
                       final originalIndex = notes.indexOf(note);
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                        child: ListTile(
-                          title: Text(note['title'] ?? ''),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if ((note['text'] ?? '').isNotEmpty)
-                                Text(
-                                  note['text'],
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              if ((note['dueDate'] ?? '').isNotEmpty)
-                                Text('Дата реализации: ${note['dueDate']}'),
-                              Text('Добавлено: ${note['createdAt']}'),
-                              if ((note['additional'] ?? '').isNotEmpty)
-                                Text('Дополнительно: ${note['additional']}'),
-                              if (note['userName'] != null)
-                                Text('Автор: ${note['userName']}'),
-                            ],
-                          ),
-                          onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CreateNoteScreen(
-                                  note: note,
-                                  index: originalIndex,
-                                  userData: widget.userData,
-                                ),
-                              ),
-                            );
-                            if (result != null) {
-                              updateNote(originalIndex, result);
+                      return FutureBuilder(
+                        future: _getUserData(),
+                        builder: (context, snapshot) {
+                          String userName = '';
+                          if (snapshot.hasData && snapshot.data != null) {
+                            final userData = snapshot.data!;
+                            if ((userData['lastName']?.isNotEmpty ?? false) && 
+                                (userData['firstName']?.isNotEmpty ?? false)) {
+                              userName = '${userData['lastName']} ${userData['firstName']} ${userData['middleName']}';
                             }
-                          },
-                          onLongPress: () => removeNote(originalIndex),
-                        ),
+                          }
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                            child: ListTile(
+                              title: Text(note['title'] ?? ''),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if ((note['text'] ?? '').isNotEmpty)
+                                    Text(
+                                      note['text'],
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  if ((note['dueDate'] ?? '').isNotEmpty)
+                                    Text('Дата реализации: ${note['dueDate']}'),
+                                  Text('Добавлено: ${note['createdAt']}'),
+                                  if ((note['additional'] ?? '').isNotEmpty)
+                                    Text('Дополнительно: ${note['additional']}'),
+                                  if (userName.isNotEmpty)
+                                    Text('Автор: $userName'),
+                                ],
+                              ),
+                              onTap: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CreateNoteScreen(
+                                      note: note,
+                                      index: originalIndex,
+                                      userData: widget.userData,
+                                    ),
+                                  ),
+                                );
+                                if (result != null) {
+                                  updateNote(originalIndex, result);
+                                }
+                              },
+                              onLongPress: () => removeNote(originalIndex),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -473,20 +496,13 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
                     final now = DateFormat('dd.MM.yyyy HH:mm').format(DateTime.now());
-                    String? userName;
-                    if (widget.userData != null && 
-                        (widget.userData!['lastName']?.isNotEmpty ?? false) &&
-                        (widget.userData!['firstName']?.isNotEmpty ?? false)) {
-                      userName = '${widget.userData!['lastName']} ${widget.userData!['firstName']} ${widget.userData!['middleName']}';
-                    }
-
+                    
                     final newNote = {
                       'title': titleController.text,
                       'text': textController.text,
                       'createdAt': widget.note?['createdAt'] ?? now,
                       'dueDate': dueDateController.text,
                       'additional': additionalController.text,
-                      'userName': userName,
                     };
                     Navigator.pop(context, newNote);
                   }
